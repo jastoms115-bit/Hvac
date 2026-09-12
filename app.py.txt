@@ -1,0 +1,244 @@
+﻿import streamlit as st
+
+# 1. Page Configuration
+st.set_page_config(
+    page_title="Carrier HVAC Diagnostic Tool | ANRML",
+    page_icon="🏭",
+    layout="centered",
+    initial_sidebar_state="expanded"
+)
+
+# 2. Custom CSS for Corporate Branding
+st.markdown("""
+    <style>
+    .stApp {
+        background-color: #FAFAFA;
+    }
+    .stButton>button {
+        width: 100%;
+        border-radius: 6px;
+        height: 3.2em;
+        background-color: #1E3A8A;
+        color: white;
+        font-weight: 600;
+        border: none;
+        margin-bottom: 0.2em;
+    }
+    .stButton>button:hover {
+        background-color: #1D4ED8;
+        color: white;
+    }
+    .safety-card {
+        background-color: #FEF2F2;
+        border-left: 5px solid #DC2626;
+        padding: 15px;
+        border-radius: 4px;
+        margin-top: 15px;
+    }
+    .solution-card {
+        background-color: #EFF6FF;
+        border-left: 5px solid #2563EB;
+        padding: 15px;
+        border-radius: 4px;
+        margin-bottom: 15px;
+    }
+    </style>
+""", unsafe_allow_html=True)
+
+# 3. Decision Tree Structure
+class TroubleshootingNode:
+    def __init__(self, question_or_result, options=None, solution=None, professional_needed=False, manual_ref=None):
+        self.question_or_result = question_or_result
+        self.options = options or {}
+        self.solution = solution
+        self.professional_needed = professional_needed
+        self.manual_ref = manual_ref
+
+    def is_leaf(self):
+        return self.solution is not None
+
+def build_professional_carrier_tree():
+    s_code_12 = TroubleshootingNode(
+        "Fault Code 12: Blower On After Power Up",
+        solution="1. Verify line voltage supplied to furnace/fan coil unit.\n2. Inspect primary circuit breaker and door safety switch.\n3. Verify control board sequence initialization.",
+        manual_ref="Carrier Central Systems Service Manual - Section 4.1"
+    )
+    s_code_13 = TroubleshootingNode(
+        "Fault Code 13: Limit Switch Circuit Open / Lockout",
+        solution="1. Turn off power and inspect main high-temperature limit switch.\n2. Clean/replace clogged return air filters.\n3. Open all supply registers and inspect evaporator coil for dust blockage.",
+        manual_ref="Carrier Furnace & Air Handler Manual - Code 13"
+    )
+    s_code_31 = TroubleshootingNode(
+        "Fault Code 31 / 33: Pressure Switch Fault / Airflow Cutout",
+        solution="1. Inspect outdoor condenser coil for heavy dirt accumulation or obstruction.\n2. Verify outdoor fan motor operation and capacitor capacitance.\n3. Check high-pressure switch contacts for continuity.",
+        professional_needed=True,
+        manual_ref="Carrier Condensing Units Manual - High Pressure Protection"
+    )
+    s_code_e1 = TroubleshootingNode(
+        "Fault Code E1: Indoor/Outdoor Communication Malfunction",
+        solution="1. Disconnect main power line.\n2. Check connection tightness on signal terminals (S1 / S2 / S3 or 1 / 2 / 3).\n3. Verify shield grounding continuity on long wire runs.",
+        professional_needed=True,
+        manual_ref="Carrier Ductless Multi-Split Manual - Error E1"
+    )
+    s_code_e3 = TroubleshootingNode(
+        "Fault Code E3: Indoor Fan Speed Signal Loss",
+        solution="1. Disconnect power and check cross-flow fan wheel for mechanical blockage.\n2. Test indoor blower motor winding resistance.\n3. Replace indoor control board if motor signal is absent.",
+        professional_needed=True,
+        manual_ref="Carrier Mini-Split Service Manual - Blower Assembly"
+    )
+    s_code_e4 = TroubleshootingNode(
+        "Fault Code E4 / T3: Sensor Open / Short Circuit",
+        solution="1. Inspect coil thermistor and room ambient temperature thermistor.\n2. Measure sensor resistance using multimeter against Carrier Ohms-vs-Temperature chart.\n3. Replace damaged sensor assembly.",
+        professional_needed=True,
+        manual_ref="Carrier Sensor Resistance Technical Guide"
+    )
+    s_code_ec = TroubleshootingNode(
+        "Fault Code EC: Refrigerant Leak Detection Active",
+        solution="1. Immediately shut off unit to protect compressor against oil starvation.\n2. Perform nitrogen pressure leak test on flare connections and line set.\n3. Repair leak site, evacuate system to <500 microns, and recharge by weight.",
+        professional_needed=True,
+        manual_ref="Carrier Inverter System Service Manual - Leak Diagnostics"
+    )
+
+    s_dirty_filter = TroubleshootingNode(
+        "Diagnosis: Severe Airflow Restriction / Dirty Filter",
+        solution="1. Turn off equipment.\n2. Replace disposable pleated filters or wash mini-split mesh filters in warm water.\n3. Verify return duct air velocities prior to restart.",
+        manual_ref="Carrier Preventative Maintenance Schedule - Monthly Protocols"
+    )
+    s_frozen_coils = TroubleshootingNode(
+        "Diagnosis: Evaporator Coil Freezing",
+        solution="1. Switch thermostat from COOL to FAN ONLY mode to defrost coil.\n2. Inspect for restricted return air filters or blocked grilles.\n3. If icing reoccurs, check operating suction pressure for refrigerant undercharge.",
+        professional_needed=True,
+        manual_ref="Carrier Technical Service Guide - Defrost Procedures"
+    )
+    s_drain_clog = TroubleshootingNode(
+        "Diagnosis: Condensate Drain Blockage / Float Switch Trip",
+        solution="1. Clear primary condensate trap using wet/dry vacuum or nitrogen blow-out.\n2. Inspect secondary float switch for standing water.\n3. Flush drain line with clean water and inspect drain pump operation.",
+        manual_ref="Carrier Installation Guidelines - Drainage Systems"
+    )
+
+    n_carrier_codes = TroubleshootingNode(
+        "Select your displayed Carrier status code or LED blink sequence:",
+        options={
+            "Code 12 (Blower On After Power Up)": s_code_12,
+            "Code 13 (Limit Circuit Lockout)": s_code_13,
+            "Code 31 / 33 (High Pressure Fault)": s_code_31,
+            "Code E1 (Communication Error)": s_code_e1,
+            "Code E3 (Indoor Fan Fault)": s_code_e3,
+            "Code E4 / T3 (Sensor Resistance Error)": s_code_e4,
+            "Code EC (Refrigerant Leak Detected)": s_code_ec,
+            "Other / Flash Sequence Unlisted": TroubleshootingNode(
+                "Carrier Unlisted Diagnostic Code",
+                solution="Inspect internal control board service label for unit-specific diagnostic tables or connect Carrier Service Tool.",
+                manual_ref="Carrier Universal Field Guide"
+            )
+        }
+    )
+
+    n_carrier_minisplit = TroubleshootingNode(
+        "Select symptom for Carrier Ductless / Mini-Split System:",
+        options={
+            "Displaying Error Code / Blinking LEDs": n_carrier_codes,
+            "Indoor Unit Water Leak / Dripping": s_drain_clog,
+            "Low Air Volume / Reduced Cooling": s_dirty_filter,
+            "Frost / Ice Formation on Wall Unit": s_frozen_coils
+        }
+    )
+
+    n_carrier_central = TroubleshootingNode(
+        "Select symptom for Carrier Central AC / Package Unit:",
+        options={
+            "Control Board Flashing LED Code": n_carrier_codes,
+            "System Running But Blowing Warm Air": TroubleshootingNode(
+                "Carrier Central Unit Warm Air Delivery",
+                solution="1. Inspect outdoor circuit breaker.\n2. Verify thermostat mode is set to COOL and setpoint is below room temp.\n3. Check contactor coil voltage and dual-run capacitor.",
+                professional_needed=True,
+                manual_ref="Carrier Field Troubleshooting Protocol"
+            ),
+            "Weak airflow at supply registers": s_dirty_filter,
+            "Standing Water Around Air Handler": s_drain_clog
+        }
+    )
+
+    return TroubleshootingNode(
+        "Select Carrier Equipment Configuration:",
+        options={
+            "Central AC / Heat Pump / Package Unit": n_carrier_central,
+            "Ductless Mini-Split / Multi-Split": n_carrier_minisplit,
+            "Lookup by Specific Diagnostic Code": n_carrier_codes
+        }
+    )
+
+if "history" not in st.session_state:
+    st.session_state.history = []
+
+root_node = build_professional_carrier_tree()
+
+if "current_node" not in st.session_state:
+    st.session_state.current_node = root_node
+
+current_node = st.session_state.current_node
+
+with st.sidebar:
+    st.title("ANRML Enterprise")
+    st.caption("African Natural Resources & Mines Limited")
+    st.divider()
+    st.markdown("### 🏢 Enterprise Operations")
+    st.info("HVAC diagnostic system maintained for ANRML facility technicians.")
+    st.divider()
+    st.markdown("### 👨‍💻 Software Credits")
+    st.markdown("""
+    **Developed By:** Thomarg Technologies  
+    **Founder & Lead Architect:** James Thomas Ijimari  
+    **Target Standard:** Carrier Factory Service Manuals
+    """)
+
+st.title("⚙️ Carrier HVAC Field Diagnostic System")
+st.caption("African Natural Resources & Mines Limited — Industrial Maintenance")
+st.divider()
+
+def select_option(next_node):
+    st.session_state.history.append(st.session_state.current_node)
+    st.session_state.current_node = next_node
+
+def go_back():
+    if st.session_state.history:
+        st.session_state.current_node = st.session_state.history.pop()
+
+def restart():
+    st.session_state.history.clear()
+    st.session_state.current_node = root_node
+
+st.subheader(current_node.question_or_result)
+
+if current_node.is_leaf():
+    st.markdown(f"""
+    <div class="solution-card">
+        <h4 style="color:#1E3A8A; margin-top:0;">📋 Recommended Technical Procedure</h4>
+        <p style="white-space: pre-line; font-size:15px; color:#1E293B;">{current_node.solution}</p>
+    </div>
+    """, unsafe_allow_html=True)
+
+    if current_node.manual_ref:
+        st.caption(f"📖 **Manual Reference:** {current_node.manual_ref}")
+
+    if current_node.professional_needed:
+        st.markdown("""
+        <div class="safety-card">
+            <h4 style="color:#DC2626; margin-top:0;">⚠️ CERTIFIED TECHNICIAN REQUIRED</h4>
+            <p style="color:#7F1D1D; margin-bottom:0;">
+                High-voltage isolation or refrigerant handling required. Adhere to ANRML LOTO safety protocols.
+            </p>
+        </div>
+        """, unsafe_allow_html=True)
+else:
+    for option_text, next_node in current_node.options.items():
+        st.button(option_text, on_click=select_option, args=(next_node,))
+
+st.divider()
+col1, col2 = st.columns(2)
+with col1:
+    if len(st.session_state.history) > 0:
+        st.button("← Previous Step", on_click=go_back)
+with col2:
+    st.button("Reset Diagnostic Tree ↻", on_click=restart)
+
